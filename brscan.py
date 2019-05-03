@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from __future__ import print_function
+import argparse
 import string
 import struct
 
@@ -110,7 +111,10 @@ def read(path):
         raise RuntimeError("Not implemented")
 
 def main():
-    read("DISKINF2.BR0")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("file_name", metavar="FILE_NAME", type=str, help="File to parse")
+    args = parser.parse_args()
+    read(args.file_name)
 
 if __name__ == "__main__":
     main()
