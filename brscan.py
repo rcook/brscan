@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from __future__ import print_function
 import argparse
+import os
 import string
 import struct
 import sys
@@ -74,6 +75,9 @@ class SongInfo(object):
     def __init__(self, song_name):
         self.__song_name = song_name
 
+    @property
+    def song_name(self): return self.__song_name
+
     def dump(self):
         print("SONGINFO: song_name={}".format(self.__song_name))
 
@@ -143,7 +147,7 @@ def fetch_header(i):
         raise FormatError("Unsupported file type {}".format(file_type))
     return Header(file_type, parser)
 
-def read(path):
+def iter_file(path):
     with open(path, "rb") as f:
         data = f.read()
 
@@ -153,15 +157,17 @@ def read(path):
     if ord(data[0]) == 0x3f:
         raise FormatError("File is audio data")
 
-    i = iter(data)
+    return iter(data)
 
+def dump_file(path):
+    i = iter_file(path)
     h = fetch_header(i)
     print("File type: {}".format(h.file_type))
     h.parse(i).dump()
 
 def handle_dump(args):
     try:
-        read(args.file_name)
+        dump_file(args.file_name)
     except FormatError as e:
         sys.stderr.write("File {} is in invalid format ({})\n".format(args.file_name, e.message))
         exit(1)
@@ -169,12 +175,33 @@ def handle_dump(args):
         sys.stderr.write("Failed to read from {}\n".format(args.file_name))
         exit(2)
 
+def dump_songs(start_dir):
+    for dir_name, _, file_names in os.walk(start_dir):
+        for f in file_names:
+            p = os.path.join(dir_name, f)
+            try:
+                i = iter_file(p)
+                h = fetch_header(i)
+                if h.file_type == "SONGINFO2":
+                    song_info = h.parse(i)
+                    print("{}: {}".format(os.path.dirname(p), song_info.song_name))
+            except (FormatError, StopIteration):
+                pass
+
+def handle_songs(args):
+    dump_songs(os.getcwd())
+
 def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
+
     dump_parser = subparsers.add_parser("dump", help="dump file contents")
     dump_parser.set_defaults(func=handle_dump)
     dump_parser.add_argument("file_name", metavar="FILE_NAME", type=str, help="File to parse")
+
+    song_parser = subparsers.add_parser("songs", help="list songs")
+    song_parser.set_defaults(func=handle_songs)
+
     args = parser.parse_args()
     args.func(args)
 
