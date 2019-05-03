@@ -8,24 +8,59 @@ DUMP_COLUMN_WIDTH = 16
 HEADER_SIZE = 48
 HEADER_PREFIX = "BOSS BR0 Format "
 HEADER_SUFFIX = "Ver1.00BR-900" + (" " * 10)
-SUPPORTED_FILE_TYPES = ["DISKINFO"]
+
+class DiskInfoParser(object):
+    def parse(self, i):
+        song_count0 = int(fetch_str(4, i))
+        song_count1 = fetch_16u(i)
+        if song_count1 != song_count0 + 1:
+            raise FormatError("Inconsistent song counts in DISKINFO {} vs {}".format(song_count0, song_count1))
+        if fetch_byte(i) != 0 or fetch_byte(i) != 0:
+            raise FormatError("Unexpected trailing bytes in DISKINFO")
+        assert_at_end(i)
+        return DiskInfo(song_count0)
+
+class SongInfoParser(object):
+    def parse(self, i):
+        song_name = ""
+        while True:
+            c = next(i)
+            if c == "\0": break
+            song_name += c
+        return SongInfo(song_name)
+
+PARSERS = {
+    "DISKINFO": DiskInfoParser,
+    "SONGINFO2": SongInfoParser
+}
 
 class FormatError(Exception):
     pass
 
 class Header(object):
-    def __init__(self, file_type):
+    def __init__(self, file_type, parser):
         self.__file_type = file_type
+        self.__parser = parser
 
     @property
     def file_type(self): return self.__file_type
 
-class DISKINFO(object):
+    def parse(self, i):
+        return self.__parser().parse(i)
+
+class DiskInfo(object):
     def __init__(self, song_count):
         self.__song_count = song_count
 
-    @property
-    def song_count(self): return self.__song_count
+    def dump(self):
+        print("DISKINFO: song_count={}".format(self.__song_count))
+
+class SongInfo(object):
+    def __init__(self, song_name):
+        self.__song_name = song_name
+
+    def dump(self):
+        print("SONGINFO: song_name={}".format(self.__song_name))
 
 def dump_line(n, idx, data):
     print("{0:08x}  ".format(idx), end="")
@@ -81,19 +116,10 @@ def fetch_header(i):
         raise FormatError("Invalid header")
 
     file_type = header_str[len(HEADER_PREFIX) : HEADER_SIZE - len(HEADER_SUFFIX)].rstrip()
-    if file_type not in SUPPORTED_FILE_TYPES:
+    parser = PARSERS[file_type]
+    if parser is None:
         raise FormatError("Unsupported file type {}".format(file_type))
-    return Header(file_type)
-
-def fetch_DISKINFO(i):
-    n0 = int(fetch_str(4, i))
-    n1 = fetch_16u(i)
-    if n1 != n0 + 1:
-        raise FormatError("Inconsistent song counts in DISKINFO {} vs {}".format(n0, n1))
-    if fetch_byte(i) != 0 or fetch_byte(i) != 0:
-        raise FormatError("Unexpected trailing bytes in DISKINFO")
-    assert_at_end(i)
-    return DISKINFO(n0)
+    return Header(file_type, parser)
 
 def read(path):
     with open(path, "rb") as f:
@@ -102,11 +128,8 @@ def read(path):
     i = iter(data)
 
     h = fetch_header(i)
-    if h.file_type == "DISKINFO":
-        disk_info = fetch_DISKINFO(i)
-        print("DISKINFO: song_count={}".format(disk_info.song_count))
-    else:
-        raise RuntimeError("Not implemented")
+    print("File type: {}".format(h.file_type))
+    h.parse(i).dump()
 
 def main():
     parser = argparse.ArgumentParser()
