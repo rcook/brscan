@@ -159,10 +159,7 @@ def read(path):
     print("File type: {}".format(h.file_type))
     h.parse(i).dump()
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("file_name", metavar="FILE_NAME", type=str, help="File to parse")
-    args = parser.parse_args()
+def handle_dump(args):
     try:
         read(args.file_name)
     except FormatError as e:
@@ -171,6 +168,15 @@ def main():
     except StopIteration:
         sys.stderr.write("Failed to read from {}\n".format(args.file_name))
         exit(2)
+
+def main():
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers()
+    dump_parser = subparsers.add_parser("dump", help="dump file contents")
+    dump_parser.set_defaults(func=handle_dump)
+    dump_parser.add_argument("file_name", metavar="FILE_NAME", type=str, help="File to parse")
+    args = parser.parse_args()
+    args.func(args)
 
 if __name__ == "__main__":
     main()
