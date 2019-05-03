@@ -6,7 +6,8 @@ import struct
 
 DUMP_COLUMN_WIDTH = 16
 HEADER_SIZE = 48
-SUPPORTED_VERSION = "Ver1.00BR-900"
+HEADER_PREFIX = "BOSS BR0 Format "
+HEADER_SUFFIX = "Ver1.00BR-900" + (" " * 10)
 SUPPORTED_FILE_TYPES = ["DISKINFO"]
 
 class FormatError(Exception):
@@ -75,17 +76,14 @@ def fetch_str(n, i):
     return "".join(fetch_byte_string(n, i))
 
 def fetch_header(i):
-    tags = fetch_str(HEADER_SIZE, i).strip().split(" ")
-    if len(tags) != 5:
+    header_str = fetch_str(HEADER_SIZE, i)
+    if not header_str.startswith(HEADER_PREFIX) or not header_str.endswith(HEADER_SUFFIX):
         raise FormatError("Invalid header")
-    tag0, tag1, tag2, tag3, tag4 = tags
-    if tag0 != "BOSS" or tag1 != "BR0" or tag2 != "Format":
-        raise FormatError("Invalid header")
-    if tag4 != SUPPORTED_VERSION:
-        raise FormatError("Unsupported version {}".format(tag4))
-    if tag3 not in SUPPORTED_FILE_TYPES:
-        raise FormatError("Unsupported file type {}".format(tag3))
-    return Header(tag3)
+
+    file_type = header_str[len(HEADER_PREFIX) : HEADER_SIZE - len(HEADER_SUFFIX)].rstrip()
+    if file_type not in SUPPORTED_FILE_TYPES:
+        raise FormatError("Unsupported file type {}".format(file_type))
+    return Header(file_type)
 
 def fetch_DISKINFO(i):
     n0 = int(fetch_str(4, i))
